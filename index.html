@@ -1,0 +1,944 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>奇门遁甲专业版 - 民用晨暮光时辰</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Noto+Sans+SC:wght@400;500;700&display=swap" rel="stylesheet">
+    <!-- 引入 Phosphor Icons -->
+    <script src="https://unpkg.com/@phosphor-icons/web"></script>
+    <!-- 引入 SunCalc 库作为备用或辅助（如果需要更精确的秒级计算） -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/suncalc/1.9.0/suncalc.min.js"></script>
+    
+    <style>
+        body {
+            font-family: 'Inter', 'Noto Sans SC', sans-serif;
+            background: linear-gradient(135deg, #ffffff 0%, #f1f5f9 50%, #e2e8f0 100%);
+            min-height: 100vh;
+        }
+        .dark body {
+            background: linear-gradient(135deg, #0f172a 0%, #1e293b 50%, #334155 100%);
+        }
+        
+        /* 优雅的滚动条 */
+        ::-webkit-scrollbar { width: 8px; }
+        ::-webkit-scrollbar-track { background: transparent; }
+        ::-webkit-scrollbar-thumb { 
+            background: #cbd5e1; 
+            border-radius: 4px;
+            transition: background 0.3s;
+        }
+        ::-webkit-scrollbar-thumb:hover { background: #94a3b8; }
+        .dark ::-webkit-scrollbar-thumb { background: #475569; }
+        .dark ::-webkit-scrollbar-thumb:hover { background: #64748b; }
+
+        /* 输入框聚焦动效 */
+        .input-group { transition: transform 0.2s; }
+        .input-group:focus-within { transform: translateY(-1px); }
+
+        /* 结果面板动画 */
+        @keyframes slideIn {
+            from { opacity: 0; transform: translateY(10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+        .animate-slide-in { animation: slideIn 0.4s ease-out forwards; }
+
+        /* 玻璃拟态背景 */
+        .glass-panel {
+            background: rgba(255, 255, 255, 0.98);
+            backdrop-filter: blur(10px);
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05);
+        }
+        .dark .glass-panel {
+            background: rgba(30, 41, 59, 0.98);
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.3);
+        }
+    </style>
+    <script>
+        tailwind.config = {
+            darkMode: 'class',
+            theme: {
+                extend: {
+                    colors: {
+                        brand: {
+                            50: '#eff6ff', 100: '#dbeafe', 500: '#3b82f6', 600: '#2563eb', 700: '#1d4ed8', 900: '#1e3a8a'
+                        },
+                        mystic: { 800: '#1e293b', 900: '#0f172a' }
+                    }
+                }
+            }
+        }
+    </script>
+    
+    <!-- 立即执行主题初始化，避免闪烁 -->
+    <script>
+        (function() {
+            const savedTheme = localStorage.getItem('theme');
+            const systemPrefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+            
+            if (savedTheme === 'dark' || (!savedTheme && systemPrefersDark)) {
+                document.documentElement.classList.add('dark');
+            }
+        })();
+    </script>
+</head>
+<body class="text-slate-800 dark:text-slate-100 min-h-screen transition-colors duration-300 p-4 sm:p-6 md:p-8">
+
+    <div class="max-w-4xl mx-auto space-y-8">
+        
+        <!-- 顶部标题 -->
+        <header class="text-center space-y-2 pt-4 relative">
+            <h1 class="text-3xl md:text-4xl font-bold text-slate-900 dark:text-white tracking-tight flex items-center justify-center gap-3">
+                <i class="ph-fill ph-yin-yang text-brand-600 dark:text-brand-500"></i>
+                <span>奇门遁甲辅助工具</span>
+            </h1>
+            <p class="text-slate-500 dark:text-slate-400 text-sm md:text-base">
+                基于民用晨暮光 (Civil Twilight) 的真太阳时变动时辰计算
+            </p>
+            
+            <!-- 主题切换按钮 -->
+            <button id="themeToggle" class="absolute top-0 right-0 p-2.5 rounded-xl bg-white dark:bg-slate-800 border-2 border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 hover:border-brand-400 dark:hover:border-brand-500 transition-all shadow-sm hover:shadow-md">
+                <i class="ph-bold ph-sun text-xl hidden dark:inline"></i>
+                <i class="ph-bold ph-moon text-xl inline dark:hidden"></i>
+            </button>
+        </header>
+
+        <!-- 设置区域 (API Key) - 已内置，隐藏显示但保留逻辑接口 -->
+        <!-- <section class="glass-panel rounded-2xl shadow-sm border border-slate-200 dark:border-slate-700 p-4"> ... </section> -->
+        
+        <!-- 主功能区：双栏布局 -->
+        <div class="grid grid-cols-1 lg:grid-cols-12 gap-8">
+            
+            <!-- 左侧：时辰计算器 (占 7 列) -->
+            <div class="lg:col-span-7 space-y-6">
+                <section class="glass-panel rounded-2xl shadow-lg border border-slate-200 dark:border-slate-700 overflow-hidden">
+                    <div class="p-6 border-b border-slate-100 dark:border-slate-700/50 flex justify-between items-center bg-gradient-to-r from-slate-50 to-white dark:from-slate-800 dark:to-slate-800">
+                        <h2 class="text-lg font-bold flex items-center gap-2 text-slate-800 dark:text-white">
+                            <i class="ph-duotone ph-clock-afternoon text-brand-500 text-xl"></i>
+                            变动时辰计算器
+                        </h2>
+                        <span class="text-xs font-semibold px-2.5 py-1 bg-brand-100 dark:bg-brand-900/50 text-brand-700 dark:text-brand-300 rounded-full">昼七夜五</span>
+                    </div>
+                    
+                    <div class="p-6 space-y-6">
+                        <form id="shichenForm" class="space-y-5">
+                            <!-- 第一行：地点 (三级联动) -->
+                            <div class="space-y-1.5 input-group">
+                                <label class="text-xs font-semibold text-slate-600 dark:text-slate-400 uppercase tracking-wider flex justify-between items-center">
+                                    <span>地点选择 (中国)</span>
+                                    <span id="geo-status" class="text-[11px] font-medium text-slate-500 dark:text-slate-400">等待选择...</span>
+                                </label>
+                                <div class="grid grid-cols-2 gap-2">
+                                    <div class="relative">
+                                        <select id="provinceSelect" class="w-full pl-3 pr-8 py-3 bg-white dark:bg-slate-800 border-2 border-slate-300 dark:border-slate-600 rounded-xl text-sm font-medium text-slate-700 dark:text-slate-200 focus:ring-2 focus:ring-brand-500 focus:border-brand-500 outline-none appearance-none truncate transition-all hover:border-brand-400">
+                                            <option value="">选择省份</option>
+                                        </select>
+                                        <i class="ph-bold ph-caret-down absolute right-3 top-3.5 text-slate-400 pointer-events-none"></i>
+                                    </div>
+                                    <div class="relative">
+                                        <select id="citySelect" disabled class="w-full pl-3 pr-8 py-3 bg-white dark:bg-slate-800 border-2 border-slate-300 dark:border-slate-600 rounded-xl text-sm font-medium text-slate-700 dark:text-slate-200 focus:ring-2 focus:ring-brand-500 focus:border-brand-500 outline-none appearance-none truncate disabled:opacity-60 disabled:cursor-not-allowed transition-all">
+                                            <option value="">选择城市</option>
+                                        </select>
+                                        <i class="ph-bold ph-caret-down absolute right-3 top-3.5 text-slate-400 pointer-events-none"></i>
+                                    </div>
+                                </div>
+                                
+                                <!-- 经纬度手动/自动显示区域 -->
+                                <div class="space-y-1.5">
+                                    <div class="flex justify-between items-end" id="geo-toggle-container">
+                                        <label class="text-xs font-semibold text-slate-600 dark:text-slate-400 uppercase tracking-wider">
+                                            经纬度坐标
+                                        </label>
+                                        <button type="button" id="manualGeoBtn" class="text-xs text-brand-600 dark:text-brand-400 hover:text-brand-700 dark:hover:text-brand-300 font-medium hover:underline transition-colors">
+                                            查看/修改
+                                        </button>
+                                    </div>
+                                    <div id="geo-input-container" class="grid grid-cols-2 gap-2 hidden">
+                                        <div class="relative">
+                                            <input type="text" id="lat" placeholder="纬度 (Lat)" class="w-full pl-3 pr-3 py-2.5 bg-slate-50 dark:bg-slate-900 border border-slate-300 dark:border-slate-600 rounded-lg text-sm font-mono text-slate-700 dark:text-slate-200 focus:ring-2 focus:ring-brand-500 focus:border-brand-500 outline-none" readonly>
+                                        </div>
+                                        <div class="relative">
+                                            <input type="text" id="lng" placeholder="经度 (Lng)" class="w-full pl-3 pr-3 py-2.5 bg-slate-50 dark:bg-slate-900 border border-slate-300 dark:border-slate-600 rounded-lg text-sm font-mono text-slate-700 dark:text-slate-200 focus:ring-2 focus:ring-brand-500 focus:border-brand-500 outline-none" readonly>
+                                        </div>
+                                    </div>
+                                    <p id="geo-tip" class="hidden text-xs text-slate-500 dark:text-slate-400 leading-relaxed mt-1">
+                                        💡 自动根据选择地点获取，如失败请手动输入<br>
+                                        <span class="text-[10px]">格式示例: 39.9042 (北纬为正), 116.4074 (东经为正)</span>
+                                    </p>
+                                </div>
+                            </div>
+
+                            <!-- 第二行：日期 -->
+                            <div class="space-y-1.5 input-group">
+                                <label class="text-xs font-semibold text-slate-600 dark:text-slate-400 uppercase tracking-wider">日期</label>
+                                <div class="relative">
+                                    <input type="date" id="date" class="w-full pl-10 pr-4 py-3 bg-white dark:bg-slate-800 border-2 border-slate-300 dark:border-slate-600 rounded-xl text-sm font-medium text-slate-700 dark:text-slate-200 focus:ring-2 focus:ring-brand-500 focus:border-brand-500 outline-none transition-all">
+                                    <i class="ph ph-calendar-blank absolute left-3 top-3.5 text-slate-400"></i>
+                                </div>
+                            </div>
+
+                            <!-- API 状态与加载条 -->
+                            <div id="api-status-container" class="hidden">
+                                <div class="flex items-center justify-between text-xs mb-2">
+                                    <span id="api-msg" class="text-slate-600 dark:text-slate-300 font-medium">正在连接卫星数据...</span>
+                                </div>
+                                <div class="h-1.5 w-full bg-slate-100 dark:bg-slate-700 rounded-full overflow-hidden">
+                                    <div id="api-progress" class="h-full bg-brand-500 w-0 transition-all duration-1000"></div>
+                                </div>
+                            </div>
+
+                            <!-- 第二行：晨暮光数据 (自动获取) -->
+                            <div class="p-5 bg-gradient-to-br from-slate-50 to-blue-50/30 dark:from-slate-800/80 dark:to-slate-800/50 rounded-xl border-2 border-slate-200 dark:border-slate-700 space-y-4 relative group shadow-sm">
+                                <div class="flex justify-between items-center">
+                                    <h3 class="text-xs font-bold text-slate-600 dark:text-slate-300 uppercase tracking-wide flex items-center gap-2">
+                                        <i class="ph-duotone ph-sun-dim text-amber-500"></i>
+                                        天文节点数据 (自动)
+                                    </h3>
+                                    <button type="button" id="toggleManual" class="text-xs text-brand-600 dark:text-brand-400 hover:text-brand-700 dark:hover:text-brand-300 font-medium opacity-0 group-hover:opacity-100 transition-all hover:underline">
+                                        解锁编辑
+                                    </button>
+                                </div>
+                                <div class="grid grid-cols-2 gap-4">
+                                    <div>
+                                        <label class="block text-xs font-semibold text-slate-500 dark:text-slate-400 mb-2 flex items-center gap-1">
+                                            <i class="ph-fill ph-sun-horizon text-orange-500"></i>
+                                            民用晨光始
+                                        </label>
+                                        <div class="relative">
+                                            <input type="time" id="twilightBegin" step="1" readonly class="w-full pl-3 pr-3 py-3 bg-white dark:bg-slate-900 border-2 border-orange-200 dark:border-orange-900/50 rounded-lg text-slate-700 dark:text-slate-200 font-mono text-base font-semibold focus:bg-white dark:focus:bg-slate-800 focus:ring-2 focus:ring-orange-400 focus:border-orange-400 transition-all shadow-sm">
+                                        </div>
+                                    </div>
+                                    <div>
+                                        <label class="block text-xs font-semibold text-slate-500 dark:text-slate-400 mb-2 flex items-center gap-1">
+                                            <i class="ph-fill ph-moon-stars text-indigo-500"></i>
+                                            民用暮光终
+                                        </label>
+                                        <div class="relative">
+                                            <input type="time" id="twilightEnd" step="1" readonly class="w-full pl-3 pr-3 py-3 bg-white dark:bg-slate-900 border-2 border-indigo-200 dark:border-indigo-900/50 rounded-lg text-slate-700 dark:text-slate-200 font-mono text-base font-semibold focus:bg-white dark:focus:bg-slate-800 focus:ring-2 focus:ring-indigo-400 focus:border-indigo-400 transition-all shadow-sm">
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- 第三行：查询时间与按钮 -->
+                            <div class="pt-2">
+                                <label class="text-xs font-semibold text-slate-600 dark:text-slate-400 uppercase tracking-wider mb-1.5 block">查询时间点</label>
+                                <div class="flex gap-3">
+                                <div class="relative flex-1">
+                                    <input type="time" id="targetTime" step="1" required class="w-full pl-12 pr-4 py-3.5 bg-white dark:bg-slate-800 border-2 border-slate-300 dark:border-slate-600 rounded-xl text-lg font-semibold text-slate-700 dark:text-slate-200 shadow-sm focus:ring-2 focus:ring-brand-500 focus:border-brand-500 outline-none transition-all">
+                                    <i class="ph-duotone ph-watch absolute left-4 top-4 text-xl text-slate-400"></i>
+                                </div>
+                                    <button type="submit" class="px-6 py-3 bg-brand-600 hover:bg-brand-700 text-white rounded-xl font-medium shadow-lg shadow-brand-500/20 active:scale-95 transition-all flex items-center gap-2">
+                                        <i class="ph-bold ph-calculator"></i>
+                                        <span class="hidden md:inline">开始计算</span>
+                                        <span class="md:hidden">计算</span>
+                                    </button>
+                                </div>
+                            </div>
+                        </form>
+
+                        <!-- 错误提示 -->
+                        <div id="error-box" class="hidden p-4 rounded-xl bg-red-50 dark:bg-red-900/20 border border-red-100 dark:border-red-800 flex gap-3 items-start animate-slide-in">
+                            <i class="ph-fill ph-warning-circle text-red-500 text-xl mt-0.5"></i>
+                            <p class="text-sm text-red-600 dark:text-red-300 leading-relaxed"></p>
+                        </div>
+
+                        <!-- 计算结果展示 -->
+                        <div id="result-box" class="hidden animate-slide-in">
+                            <div class="relative p-6 rounded-xl bg-gradient-to-br from-blue-50 to-indigo-50 dark:from-slate-800 dark:to-slate-800 border border-blue-100 dark:border-slate-600 overflow-hidden">
+                                <!-- 装饰背景 -->
+                                <div class="absolute top-0 right-0 -mt-4 -mr-4 w-24 h-24 bg-brand-400/10 rounded-full blur-xl"></div>
+                                
+                                <div class="text-center relative z-10">
+                                    <p class="text-xs font-bold text-brand-600 dark:text-brand-400 uppercase tracking-widest mb-1">当前时间所属</p>
+                                    <h1 id="shichenName" class="text-5xl font-black text-slate-800 dark:text-white mb-2 tracking-tight"></h1>
+                                    <div id="shichenRange" class="inline-flex items-center gap-1.5 px-3 py-1 rounded-md bg-white/60 dark:bg-black/20 text-sm font-mono text-slate-600 dark:text-slate-300 border border-white/50 dark:border-white/5">
+                                        <!-- 区间时间 -->
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- 详细列表折叠 -->
+                            <div class="mt-4">
+                                <button id="toggleDetails" class="flex w-full items-center justify-between px-4 py-2 text-sm text-slate-500 hover:text-brand-600 transition-colors rounded-lg hover:bg-slate-50 dark:hover:bg-slate-800">
+                                    <span>查看当日完整时辰表</span>
+                                    <i class="ph-bold ph-caret-down transition-transform duration-300"></i>
+                                </button>
+                                <div id="details-panel" class="hidden mt-2 p-4 bg-slate-50 dark:bg-slate-900/50 rounded-xl border border-slate-100 dark:border-slate-700 overflow-hidden">
+                                    <div id="details-content" class="grid grid-cols-1 sm:grid-cols-2 gap-2 text-sm font-mono"></div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </section>
+            </div>
+
+            <!-- 右侧：奇仪对应 (占 5 列) -->
+            <div class="lg:col-span-5 space-y-6">
+                <section class="glass-panel rounded-2xl shadow-lg border border-slate-200 dark:border-slate-700 h-full">
+                    <div class="p-6 border-b border-slate-100 dark:border-slate-700/50 bg-gradient-to-r from-slate-50 to-white dark:from-slate-800 dark:to-slate-800">
+                        <h2 class="text-lg font-bold flex items-center gap-2 text-slate-800 dark:text-white">
+                            <i class="ph-duotone ph-compass text-purple-500 text-xl"></i>
+                            奇仪排盘查询
+                        </h2>
+                    </div>
+                    
+                    <div class="p-6 space-y-8">
+                        <!-- 功能 A -->
+                        <div class="space-y-4">
+                            <h3 class="text-sm font-bold text-slate-600 dark:text-slate-300 flex items-center gap-2">
+                                <span class="w-1.5 h-1.5 rounded-full bg-purple-500"></span>
+                                已知用神，反查甲
+                            </h3>
+                            <div class="grid grid-cols-2 gap-3">
+                                <select id="find-jia-gan" class="w-full px-3 py-2.5 bg-white dark:bg-slate-800 border-2 border-slate-300 dark:border-slate-600 rounded-lg text-sm font-medium text-slate-700 dark:text-slate-200 outline-none focus:border-purple-500 focus:ring-2 focus:ring-purple-500/20 transition-all">
+                                    <option value="乙">天干: 乙</option><option value="丙">天干: 丙</option><option value="丁">天干: 丁</option>
+                                    <option value="戊">天干: 戊</option><option value="己">天干: 己</option><option value="庚">天干: 庚</option>
+                                    <option value="辛">天干: 辛</option><option value="壬">天干: 壬</option><option value="癸">天干: 癸</option>
+                                </select>
+                                <select id="find-jia-menxing" class="w-full px-3 py-2.5 bg-white dark:bg-slate-800 border-2 border-slate-300 dark:border-slate-600 rounded-lg text-sm font-medium text-slate-700 dark:text-slate-200 outline-none focus:border-purple-500 focus:ring-2 focus:ring-purple-500/20 transition-all"></select>
+                            </div>
+                            <button onclick="findJia()" class="w-full py-2.5 bg-slate-100 dark:bg-slate-700 hover:bg-purple-50 dark:hover:bg-purple-900/30 text-slate-700 dark:text-slate-200 hover:text-purple-600 dark:hover:text-purple-400 rounded-lg text-sm font-semibold transition-all border border-slate-200 dark:border-slate-600 hover:border-purple-300 dark:hover:border-purple-700">
+                                查询甲位
+                            </button>
+                            <div id="find-jia-result" class="hidden p-3 text-center text-sm rounded-lg border border-dashed"></div>
+                        </div>
+
+                        <div class="border-t border-slate-100 dark:border-slate-700"></div>
+
+                        <!-- 功能 B -->
+                        <div class="space-y-4">
+                            <h3 class="text-sm font-bold text-slate-600 dark:text-slate-300 flex items-center gap-2">
+                                <span class="w-1.5 h-1.5 rounded-full bg-pink-500"></span>
+                                已知甲，正查用神
+                            </h3>
+                            <div class="grid grid-cols-2 gap-3">
+                                <select id="find-other-jia-menxing" class="w-full px-3 py-2.5 bg-white dark:bg-slate-800 border-2 border-slate-300 dark:border-slate-600 rounded-lg text-sm font-medium text-slate-700 dark:text-slate-200 outline-none focus:border-pink-500 focus:ring-2 focus:ring-pink-500/20 transition-all"></select>
+                                <select id="find-other-gan" class="w-full px-3 py-2.5 bg-white dark:bg-slate-800 border-2 border-slate-300 dark:border-slate-600 rounded-lg text-sm font-medium text-slate-700 dark:text-slate-200 outline-none focus:border-pink-500 focus:ring-2 focus:ring-pink-500/20 transition-all">
+                                    <option value="乙">找: 乙</option><option value="丙">找: 丙</option><option value="丁">找: 丁</option>
+                                    <option value="戊">找: 戊</option><option value="己">找: 己</option><option value="庚">找: 庚</option>
+                                    <option value="辛">找: 辛</option><option value="壬">找: 壬</option><option value="癸">找: 癸</option>
+                                </select>
+                            </div>
+                            <button onclick="findOther()" class="w-full py-2.5 bg-slate-100 dark:bg-slate-700 hover:bg-pink-50 dark:hover:bg-pink-900/30 text-slate-700 dark:text-slate-200 hover:text-pink-600 dark:hover:text-pink-400 rounded-lg text-sm font-semibold transition-all border border-slate-200 dark:border-slate-600 hover:border-pink-300 dark:hover:border-pink-700">
+                                查询用神
+                            </button>
+                            <div id="find-other-result" class="hidden p-3 text-center text-sm rounded-lg border border-dashed"></div>
+                        </div>
+                    </div>
+                </section>
+            </div>
+        </div>
+    </div>
+
+    <!-- 逻辑脚本 -->
+    <script>
+        // --- 1. 数据与配置 ---
+        
+        const API_KEY = "629dd8faf6d54b579b0d7b20b63c4f11";
+        let pcaData = []; // 省市区数据缓存
+
+        // 奇仪对应关系
+        const correspondences = {
+            "杜门/天辅": { "乙": "休门/天蓬", "丙": "生门/天任", "戊": "生门/天任", "丁": "伤门/天冲", "己": "伤门/天冲", "庚": "开门/天心", "辛": "景门/天英", "壬": "死门/天芮", "癸": "惊门/天柱" },
+            "景门/天英": { "乙": "开门/天心", "丙": "伤门/天冲", "戊": "伤门/天冲", "丁": "生门/天任", "己": "生门/天任", "庚": "休门/天蓬", "辛": "杜门/天辅", "壬": "惊门/天柱", "癸": "死门/天芮" },
+            "死门/天芮": { "乙": "惊门/天柱", "丙": "杜门/天辅", "戊": "杜门/天辅", "丁": "休门/天蓬", "己": "休门/天蓬", "庚": "生门/天任", "辛": "伤门/天冲", "壬": "开门/天心", "癸": "景门/天英" },
+            "伤门/天冲": { "乙": "生门/天任", "丙": "休门/天蓬", "戊": "休门/天蓬", "丁": "杜门/天辅", "己": "杜门/天辅", "庚": "惊门/天柱", "辛": "死门/天芮", "壬": "景门/天英", "癸": "开门/天心" },
+            "惊门/天柱": { "乙": "死门/天芮", "丙": "景门/天英", "戊": "景门/天英", "丁": "开门/天心", "己": "开门/天心", "庚": "伤门/天冲", "辛": "生门/天任", "壬": "休门/天蓬", "癸": "杜门/天辅" },
+            "生门/天任": { "乙": "伤门/天冲", "丙": "开门/天心", "戊": "开门/天心", "丁": "景门/天英", "己": "景门/天英", "庚": "死门/天芮", "辛": "惊门/天柱", "壬": "杜门/天辅", "癸": "休门/天蓬" },
+            "休门/天蓬": { "乙": "杜门/天辅", "丙": "惊门/天柱", "戊": "惊门/天柱", "丁": "死门/天芮", "己": "死门/天芮", "庚": "景门/天英", "辛": "开门/天心", "壬": "伤门/天冲", "癸": "生门/天任" },
+            "开门/天心": { "乙": "景门/天英", "丙": "死门/天芮", "戊": "死门/天芮", "丁": "惊门/天柱", "己": "惊门/天柱", "庚": "杜门/天辅", "辛": "休门/天蓬", "壬": "生门/天任", "癸": "伤门/天冲" }
+        };
+
+        // --- 2. API 与数据获取 ---
+
+        // const apiKeyInput = document.getElementById('apiKey'); // 已废弃
+        // const saveKeyBtn = document.getElementById('saveKeyBtn'); // 已废弃
+        
+        // 新的地址选择元素
+        const provinceSelect = document.getElementById('provinceSelect');
+        const citySelect = document.getElementById('citySelect');
+        const geoStatus = document.getElementById('geo-status');
+        const latInput = document.getElementById('lat');
+        const lngInput = document.getElementById('lng');
+
+        const dateInput = document.getElementById('date');
+        const apiStatusContainer = document.getElementById('api-status-container');
+        const apiMsg = document.getElementById('api-msg');
+        const apiProgress = document.getElementById('api-progress');
+        const twilightBeginInput = document.getElementById('twilightBegin');
+        const twilightEndInput = document.getElementById('twilightEnd');
+
+        // 加载省市区数据
+        async function loadPCAData() {
+            try {
+                geoStatus.textContent = "正在加载城市数据...";
+                // 使用 jsdelivr 加载 github 上的 json
+                const res = await fetch('https://unpkg.com/china-division/dist/pcas-code.json');
+                if(!res.ok) throw new Error("城市数据加载失败");
+                pcaData = await res.json();
+                
+                // 填充省份
+                provinceSelect.innerHTML = '<option value="">省份</option>';
+                pcaData.forEach(p => {
+                    const opt = document.createElement('option');
+                    opt.value = p.name;
+                    opt.text = p.name;
+                    provinceSelect.add(opt);
+                });
+                geoStatus.textContent = "👇 请选择地点";
+            } catch (e) {
+                geoStatus.textContent = "❌ 城市数据加载失败，请刷新";
+                console.error(e);
+            }
+        }
+
+        // 联动逻辑
+        function updateCities() {
+            const pName = provinceSelect.value;
+            citySelect.innerHTML = '<option value="">城市</option>';
+            citySelect.disabled = true;
+
+            if(!pName) return;
+
+            const pData = pcaData.find(p => p.name === pName);
+            if(pData && pData.children) {
+                pData.children.forEach(c => {
+                    const opt = document.createElement('option');
+                    opt.value = c.name;
+                    opt.text = c.name;
+                    citySelect.add(opt);
+                });
+                citySelect.disabled = false;
+            }
+        }
+
+        // 获取经纬度 (优先使用 Open-Meteo，OpenStreetMap 作为备选)
+        let geoTimeout;
+        async function fetchCoordinates() {
+            const p = provinceSelect.value;
+            const c = citySelect.value;
+
+            if(!p) return;
+
+            // 构建查询字符串
+            let query = c || p;
+
+            geoStatus.textContent = "正在自动定位...";
+            geoStatus.className = "text-[11px] font-semibold text-brand-600 dark:text-brand-400";
+            
+            // 锁定输入框
+            if(!latInput.hasAttribute('readonly')) {
+                lockGeoInputs();
+            }
+
+            clearTimeout(geoTimeout);
+            geoTimeout = setTimeout(async () => {
+                try {
+                    // 1. 尝试 Open-Meteo Geocoding API
+                    // 我们需要获取 "name" (英文名) 和 "latitude/longitude"
+                    const searchName = c || p;
+                    const omUrl = `https://geocoding-api.open-meteo.com/v1/search?name=${encodeURIComponent(searchName)}&count=5&language=zh&format=json`;
+                    
+                    let lat, lng, foundName, englishName;
+                    
+                    const res = await fetch(omUrl);
+                    const data = await res.json();
+
+                    if(data.results && data.results.length > 0) {
+                        const item = data.results.find(i => i.country_code === 'CN') || data.results[0];
+                        lat = item.latitude;
+                        lng = item.longitude;
+                        foundName = item.name; 
+                        
+                    } else {
+                        // 2. 如果 Open-Meteo 没找到，尝试 Nominatim
+                        console.log("Open-Meteo未找到，切换至OSM...");
+                        const osmQuery = `中国 ${p} ${c || ''}`;
+                        const osmUrl = `https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(osmQuery)}&format=json&limit=1&addressdetails=1&accept-language=zh-CN`;
+                        
+                        const res2 = await fetch(osmUrl);
+                        if(!res2.ok) throw new Error("Geo Service Unavailable");
+                        const data2 = await res2.json();
+                        
+                        if(data2 && data2.length > 0) {
+                            lat = parseFloat(data2[0].lat);
+                            lng = parseFloat(data2[0].lon);
+                            foundName = data2[0].display_name.split(',')[0];
+                        } else {
+                            throw new Error("未找到位置信息");
+                        }
+                    }
+
+                    // 成功获取
+                    if(lat && lng) {
+                        latInput.value = parseFloat(lat).toFixed(4);
+                        lngInput.value = parseFloat(lng).toFixed(4);
+                        
+                        geoStatus.textContent = `✓ 已定位: ${foundName || (c||p)}`;
+                        geoStatus.className = "text-[11px] font-bold text-green-600 dark:text-green-400";
+                        
+                        // 关键：隐藏经纬度输入框区域，让用户感觉不到它们的存在
+                        // (我会在CSS里处理这个显隐，或者在这里动态隐藏)
+                        document.getElementById('geo-input-container').classList.add('hidden');
+                        document.getElementById('geo-toggle-container').classList.remove('hidden'); // 显示一个小按钮允许展开
+
+                        // 自动触发日出日落查询
+                        fetchSunTimes();
+                    }
+                } catch (e) {
+                    console.error(e);
+                    // 失败时才显示输入框
+                    document.getElementById('geo-input-container').classList.remove('hidden');
+                    geoStatus.textContent = "⚠ 自动定位失败，请手动输入";
+                    geoStatus.className = "text-[11px] font-bold text-red-600 dark:text-red-400";
+                    unlockGeoInputs();
+                }
+            }, 800); 
+        }
+
+        function unlockGeoInputs() {
+            latInput.removeAttribute('readonly');
+            lngInput.removeAttribute('readonly');
+            latInput.classList.remove('bg-slate-50', 'dark:bg-slate-900');
+            latInput.classList.add('bg-white', 'dark:bg-slate-800', 'border-brand-400');
+            lngInput.classList.remove('bg-slate-50', 'dark:bg-slate-900');
+            lngInput.classList.add('bg-white', 'dark:bg-slate-800', 'border-brand-400');
+            document.getElementById('manualGeoBtn').textContent = "锁定坐标";
+            document.getElementById('geo-input-container').classList.remove('hidden');
+            document.getElementById('geo-tip').classList.remove('hidden');
+        }
+
+        function lockGeoInputs() {
+            latInput.setAttribute('readonly', true);
+            lngInput.setAttribute('readonly', true);
+            latInput.classList.add('bg-slate-50', 'dark:bg-slate-900');
+            latInput.classList.remove('bg-white', 'dark:bg-slate-800', 'border-brand-400');
+            lngInput.classList.add('bg-slate-50', 'dark:bg-slate-900');
+            lngInput.classList.remove('bg-white', 'dark:bg-slate-800', 'border-brand-400');
+            document.getElementById('manualGeoBtn').textContent = "查看/修改";
+            // document.getElementById('geo-input-container').classList.add('hidden'); // 保持显示或隐藏取决于用户是否点开了
+        }
+
+        // 手动修改按钮逻辑
+        document.getElementById('manualGeoBtn').addEventListener('click', function() {
+            const container = document.getElementById('geo-input-container');
+            const tip = document.getElementById('geo-tip');
+            
+            if(container.classList.contains('hidden')) {
+                // 展开
+                container.classList.remove('hidden');
+                tip.classList.remove('hidden');
+                this.textContent = "锁定坐标"; // 默认展开时可能是为了修改？或者仅仅查看。我们假设是为了修改
+                // 如果已经有值且只读，那就是查看模式，不需要解锁
+                if(latInput.hasAttribute('readonly')) {
+                     this.textContent = "修改坐标";
+                }
+            } else {
+                // 如果是“修改坐标”状态，则点击意味着解锁
+                if(this.textContent === "修改坐标") {
+                    unlockGeoInputs();
+                } else {
+                    // 折叠
+                    container.classList.add('hidden');
+                    tip.classList.add('hidden');
+                    lockGeoInputs(); // 折叠时自动锁定
+                    this.textContent = "查看/修改";
+                    // 锁定时如果有值，触发计算
+                    if(latInput.value && lngInput.value) fetchSunTimes();
+                }
+            }
+        });
+
+        // 经纬度输入框失去焦点时如果已填满，尝试计算
+        [latInput, lngInput].forEach(input => {
+            input.addEventListener('change', () => {
+                if(latInput.value && lngInput.value && !latInput.hasAttribute('readonly')) {
+                    fetchSunTimes();
+                }
+            });
+        });
+
+        // 核心：获取晨暮光时间
+        async function fetchSunTimes() {
+            const apiKey = API_KEY;
+            // const locIndex = locationSelect.value; // 已废弃
+            const dateStr = dateInput.value;
+            const lat = latInput.value;
+            const lng = lngInput.value;
+
+            if (!lat || !lng || !dateStr) return;
+
+            // UI Loading State
+            apiStatusContainer.classList.remove('hidden');
+            apiProgress.style.width = '0%';
+            apiMsg.textContent = `正在获取天文数据...`;
+            apiMsg.className = "text-brand-600 font-medium";
+            
+            // Fake progress
+            setTimeout(() => apiProgress.style.width = '60%', 100);
+
+            try {
+                // 构建 API URL
+                // 用户指定：规定 API 返回秒级数据。
+                // 尝试添加 time_format=24 也就是请求完整时间格式 (根据常见的 API 惯例推测，或者用户可能指的是不截断)
+                const url = `https://api.ipgeolocation.io/v2/astronomy?apiKey=${apiKey}&lat=${lat}&long=${lng}&date=${dateStr}&time_format=24`;
+                
+                const response = await fetch(url);
+                const data = await response.json();
+
+                if (!response.ok) {
+                    throw new Error(data.message || "请求失败，请检查网络");
+                }
+
+                // 提取民用晨暮光时间
+                // 直接使用 API 返回的数据，假设已包含秒
+                let morningStart = data.astronomy.morning.civil_twilight_begin;
+                let eveningEnd = data.astronomy.evening.civil_twilight_end;
+
+                // 简单的格式检查，防止数据完全不可用
+                if (morningStart && morningStart.indexOf(':') > -1) {
+                    twilightBeginInput.value = morningStart;
+                }
+                if (eveningEnd && eveningEnd.indexOf(':') > -1) {
+                    twilightEndInput.value = eveningEnd;
+                }
+
+                apiProgress.style.width = '100%';
+                apiMsg.innerHTML = `<i class="ph-bold ph-check"></i> 获取成功`;
+                apiMsg.className = "text-green-600 font-bold";
+
+                // 2秒后隐藏
+                setTimeout(() => {
+                    apiStatusContainer.classList.add('hidden');
+                }, 2000);
+                
+                // 自动重新计算
+                calculate();
+
+            } catch (err) {
+                apiProgress.style.width = '100%';
+                apiProgress.classList.remove('bg-brand-500');
+                apiProgress.classList.add('bg-red-500');
+                apiMsg.textContent = `错误: ${err.message}`;
+                apiMsg.className = "text-red-600 font-bold";
+                console.error(err);
+            }
+        }
+
+        // --- 3. 时辰计算逻辑 ---
+        // ... (保留原计算逻辑) ...
+
+
+        const shichenForm = document.getElementById('shichenForm');
+        const targetTimeInput = document.getElementById('targetTime');
+        const errorBox = document.getElementById('error-box');
+        const resultBox = document.getElementById('result-box');
+        const shichenNameEl = document.getElementById('shichenName');
+        const shichenRangeEl = document.getElementById('shichenRange');
+        const toggleDetailsBtn = document.getElementById('toggleDetails');
+        const detailsPanel = document.getElementById('details-panel');
+        const detailsContent = document.getElementById('details-content');
+
+        function parseTime(t) {
+            if (!t) return null;
+            const [h, m, s = 0] = t.split(':').map(Number);
+            return h * 3600 + m * 60 + s;
+        }
+
+        function formatTime(sec) {
+            sec = Math.floor(sec);
+            // Normalize to 24h for display
+            let dSec = sec % 86400;
+            if (dSec < 0) dSec += 86400;
+            const h = Math.floor(dSec / 3600);
+            const m = Math.floor((dSec % 3600) / 60);
+            const s = dSec % 60;
+            return `${String(h).padStart(2,'0')}:${String(m).padStart(2,'0')}:${String(s).padStart(2,'0')}`;
+        }
+
+        function showError(msg) {
+            errorBox.classList.remove('hidden');
+            errorBox.querySelector('p').textContent = msg;
+            resultBox.classList.add('hidden');
+        }
+
+        function calculate() {
+            errorBox.classList.add('hidden');
+            
+            const startStr = twilightBeginInput.value;
+            const endStr = twilightEndInput.value;
+            const targetStr = targetTimeInput.value;
+
+            if (!startStr || !endStr) {
+                showError("请先获取或输入晨暮光时间 (需填写 API Key 并选择地点)");
+                return;
+            }
+            if (!targetStr) {
+                showError("请选择查询时间");
+                return;
+            }
+
+            const startSec = parseTime(startStr);
+            const endSec = parseTime(endStr);
+            const targetSec = parseTime(targetStr);
+
+            if (endSec <= startSec) {
+                showError("白昼结束时间必须晚于开始时间");
+                return;
+            }
+
+            // 昼七夜五逻辑
+            const dayLen = endSec - startSec;
+            const nightLen = 86400 - dayLen;
+            
+            const dayUnit = dayLen / 7;
+            const nightUnit = nightLen / 5;
+
+            const dayNames = ['卯', '辰', '巳', '午', '未', '申', '酉'];
+            const nightNames = ['戌', '亥', '子', '丑', '寅'];
+            
+            let intervals = [];
+            let curr = startSec;
+
+            // 白天
+            dayNames.forEach(name => {
+                intervals.push({ name, start: curr, end: curr + dayUnit, type: 'day' });
+                curr += dayUnit;
+            });
+
+            // 夜晚 (从 endSec 开始)
+            curr = endSec;
+            nightNames.forEach(name => {
+                // 注意处理跨天：如果 end > 86400，表示第二天
+                intervals.push({ name, start: curr, end: curr + nightUnit, type: 'night' });
+                curr += nightUnit;
+            });
+
+            // 查找
+            let found = null;
+            const tolerance = 0.01;
+
+            for (let iv of intervals) {
+                // 标准化比较
+                // 每一个区间可能是 [A, B]。如果 B > 86400，说明跨天了
+                // Target 也是 0-86400
+                // 情况1：不跨天，target 在 [s, e)
+                // 情况2：跨天，比如 [80000, 90000] -> 实际是 22:xx 到 01:xx
+                //        target >= 80000 OR target < (90000-86400)
+                
+                let s = iv.start % 86400;
+                let e = iv.end % 86400;
+                // 如果原始 end > 86400，说明 e 比 s 小（或者 s很大），即跨天
+                let isCross = iv.end >= 86400; // 简单判断: 累加时肯定会超过
+                
+                // 更严谨的判断逻辑：
+                // 如果区间未跨越午夜 (start < end 且 end < 86400)
+                // 我们的 intervals 构建方式是线性的，night 部分肯定会超过 86400
+                
+                // 将 target 映射到相对于 startSec 的线性轴上比较困难，不如直接判断范围
+                // 我们可以直接检查 target 是否落在 [start, end) 
+                // 但是 target 是 0-24h。如果 interval 是 23:00-25:00 (即次日01:00)
+                // target如果是 00:30，应该匹配。
+                
+                // 转换逻辑：
+                // 如果 interval.start < interval.end (未跨天，且都在24h内? 不一定，night部分都在start之后)
+                // 实际上，night 部分的 curr 是不断累加的，最终会达到 startSec + 86400
+                
+                // 判定逻辑：
+                // 1. 计算 target 相对于 "当天" 的偏移。
+                // 如果 target < startSec (黎明前)，它可能属于前一天的"寅"时? 
+                // 不，这里的逻辑是计算 "该日期的时辰划分"。
+                // 如果当前时间是凌晨 01:00，且日出是 06:00。
+                // 那么 01:00 属于昨夜的延续？还是今天的早晨？
+                // 在奇门/八字里，子时换日。
+                // 但“变动时辰”通常指：以日出为卯。
+                // 所以 00:00 - 06:00 这一段，在我们的 intervals 数组里，是排在最后的（戌亥子丑寅）。
+                // 我们的 intervals[last] (寅) 结束时间 = startSec + 86400。
+                // 所以如果 target < startSec，我们应该认为它是 intervals 里的一部分吗？
+                // 应该把 target 加上 86400 来比较？或者认为它是这一轮循环的尾部。
+                
+                // 简单做法：如果 target < startSec，把它看作 target + 86400 (即第二天凌晨) 来与 intervals 比较
+                // 比如 target = 02:00 (7200s), start = 06:00 (21600s).
+                // 7200 < 21600, 所以比较值是 7200 + 86400 = 93600.
+                // 我们的 interval 寅时可能是 [90000, 108000]。 93600 在里面 -> 匹配成功。
+                
+                let compTarget = targetSec;
+                if (targetSec < startSec) {
+                    compTarget += 86400;
+                }
+                
+                if (compTarget >= iv.start - tolerance && compTarget < iv.end - tolerance) {
+                    found = iv;
+                    break;
+                }
+            }
+
+            if (found) {
+                shichenNameEl.textContent = found.name + '时';
+                shichenNameEl.className = `text-5xl font-black tracking-tight mb-2 ${found.type === 'day' ? 'text-orange-500' : 'text-indigo-500'}`;
+                
+                shichenRangeEl.innerHTML = `
+                    <i class="${found.type === 'day' ? 'ph-fill ph-sun' : 'ph-fill ph-moon'}"></i>
+                    <span>${formatTime(found.start)} - ${formatTime(found.end)}</span>
+                `;
+
+                // 渲染详情
+                let html = '';
+                intervals.forEach(iv => {
+                    let isCurrent = iv.name === found.name;
+                    let cls = isCurrent 
+                        ? 'bg-brand-100 dark:bg-brand-900/40 text-brand-700 dark:text-brand-300 border-brand-200 dark:border-brand-700' 
+                        : 'bg-white dark:bg-slate-800 text-slate-500 border-slate-100 dark:border-slate-700';
+                    
+                    html += `
+                        <div class="p-2 rounded border ${cls} flex justify-between items-center">
+                            <span class="font-bold">${iv.name}时</span>
+                            <span class="opacity-80">${formatTime(iv.start)} - ${formatTime(iv.end)}</span>
+                        </div>
+                    `;
+                });
+                detailsContent.innerHTML = html;
+                resultBox.classList.remove('hidden');
+            } else {
+                showError("无法计算时辰 (时间超出范围)");
+            }
+        }
+
+        shichenForm.addEventListener('submit', (e) => {
+            e.preventDefault();
+            calculate();
+        });
+
+        // --- 4. 奇仪逻辑 ---
+
+        function populateSelects() {
+            const opts = Object.keys(correspondences).map(k => `<option value="${k}">${k}</option>`).join('');
+            const def1 = '<option value="" disabled selected>选择门/星</option>';
+            const def2 = '<option value="" disabled selected>甲在门/星</option>';
+            document.getElementById('find-jia-menxing').innerHTML = def1 + opts;
+            document.getElementById('find-other-jia-menxing').innerHTML = def2 + opts;
+        }
+
+        function findJia() {
+            const gan = document.getElementById('find-jia-gan').value;
+            const mx = document.getElementById('find-jia-menxing').value;
+            const resDiv = document.getElementById('find-jia-result');
+            
+            if (!mx) return;
+            resDiv.classList.remove('hidden');
+            
+            let found = null;
+            for(let k in correspondences) {
+                if(correspondences[k][gan] === mx) { found = k; break; }
+            }
+
+            if(found) {
+                resDiv.textContent = `甲在: ${found}`;
+                resDiv.className = "p-3 text-center text-sm rounded-lg border border-dashed bg-purple-50 border-purple-200 text-purple-700 dark:bg-purple-900/20 dark:border-purple-800 dark:text-purple-300";
+            } else {
+                resDiv.textContent = "无匹配组合";
+                resDiv.className = "p-3 text-center text-sm rounded-lg border border-dashed bg-red-50 border-red-200 text-red-600";
+            }
+        }
+
+        function findOther() {
+            const jiaMx = document.getElementById('find-other-jia-menxing').value;
+            const gan = document.getElementById('find-other-gan').value;
+            const resDiv = document.getElementById('find-other-result');
+            
+            if(!jiaMx) return;
+            resDiv.classList.remove('hidden');
+
+            const res = correspondences[jiaMx]?.[gan];
+            if(res) {
+                resDiv.textContent = `${gan} 在: ${res}`;
+                resDiv.className = "p-3 text-center text-sm rounded-lg border border-dashed bg-pink-50 border-pink-200 text-pink-700 dark:bg-pink-900/20 dark:border-pink-800 dark:text-pink-300";
+            } else {
+                resDiv.textContent = "查询失败";
+                resDiv.className = "p-3 text-center text-sm rounded-lg border border-dashed bg-red-50 border-red-200 text-red-600";
+            }
+        }
+
+        // --- 5. 主题切换功能 ---
+        
+        function initTheme() {
+            // 检查本地存储或系统偏好
+            const savedTheme = localStorage.getItem('theme');
+            const systemPrefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+            
+            if (savedTheme === 'dark' || (!savedTheme && systemPrefersDark)) {
+                document.documentElement.classList.add('dark');
+            } else {
+                document.documentElement.classList.remove('dark');
+            }
+        }
+        
+        function toggleTheme() {
+            const isDark = document.documentElement.classList.contains('dark');
+            
+            if (isDark) {
+                document.documentElement.classList.remove('dark');
+                localStorage.setItem('theme', 'light');
+            } else {
+                document.documentElement.classList.add('dark');
+                localStorage.setItem('theme', 'dark');
+            }
+        }
+
+        // --- 初始化 ---
+        window.onload = async () => {
+            // 初始化主题
+            initTheme();
+            
+            // loadApiKey(); // 已废弃
+            populateSelects();
+            
+            // 填充日期
+            const now = new Date();
+            const y = now.getFullYear();
+            const m = String(now.getMonth()+1).padStart(2,'0');
+            const d = String(now.getDate()).padStart(2,'0');
+            dateInput.value = `${y}-${m}-${d}`;
+            targetTimeInput.value = now.toTimeString().substring(0,8);
+
+            // 加载城市数据
+            await loadPCAData();
+
+            // 交互绑定
+            // locationSelect.addEventListener('change', fetchSunTimes); // 已废弃
+            provinceSelect.addEventListener('change', () => { updateCities(); fetchCoordinates(); });
+            citySelect.addEventListener('change', () => { fetchCoordinates(); });
+
+            dateInput.addEventListener('change', fetchSunTimes);
+
+            document.getElementById('toggleManual').addEventListener('click', function() {
+                const locked = twilightBeginInput.hasAttribute('readonly');
+                if(locked) {
+                    twilightBeginInput.removeAttribute('readonly');
+                    twilightEndInput.removeAttribute('readonly');
+                    this.textContent = "锁定";
+                } else {
+                    twilightBeginInput.setAttribute('readonly', true);
+                    twilightEndInput.setAttribute('readonly', true);
+                    this.textContent = "解锁编辑";
+                }
+            });
+
+            document.getElementById('toggleDetails').addEventListener('click', () => {
+                detailsPanel.classList.toggle('hidden');
+            });
+            
+            // 主题切换按钮
+            document.getElementById('themeToggle').addEventListener('click', toggleTheme);
+
+            // 自动计算一次（如果已经有坐标）
+            // 目前需要用户手动选择地点
+        };
+    </script>
+</body>
+</html>
+</html>
